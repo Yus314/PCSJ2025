@@ -1,0 +1,179 @@
+\documentclass[10pt]{jarticle}
+%\usepackage{newtxtext,newtxmath}
+%\usepackage{url}
+\usepackage{pcsjimps-j}
+\usepackage[dvipdfmx]{graphicx}
+\usepackage[dvipdfmx,bookmarks=false]{hyperref}
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{subcaption}
+\graphicspath{{./figure/}}
+\def\x{{\mathbf{x}}}
+\def\z{{\mathbf{z}}}
+\def\y{{\mathbf{y}}}
+\def\A{{\mathbf{A}}}
+\def\M{{\mathbf{M}}}
+\def\I{{\mathbf{I}}}
+
+\begin{document}
+\pagestyle{empty}
+
+
+
+\twocolumn[\centering
+% 日本語タイトル
+\JTitle{事前学習された潜在拡散モデルを用いた\\ ゼロショット画像インペインティング}
+% 英語タイトル
+\ETitle{Zero-shot image inpainting using a pre-trained latent diffusion model}
+% 著者
+\JEAuthor{柿沼\ 祐介$^\dag$}{Yusuke Kakinuma$^\dag$}{40mm}
+\JEAuthor{宮田\ 高道$^\dag$}{Takamichi Miyata$^\dag$}{40mm}
+\JEAuthor{細野\ 海人$^\ddag$}{Kaito Hosono$^\ddag$}{40mm}
+\JEAuthor{木下\ 宏揚$^\ddag$}{Hirotsugu Kinoshita$^\ddag$}{40mm}
+% 所属
+\JEAffiliation{$^\dag$ 千葉工業大学}{$^\dag$ Chiba Institute of Technology}{50mm}
+\JEAffiliation{$^\ddag$神奈川大学}{$^\ddag$ University of Kanagawa}{50mm}\\
+
+% 概要
+\Abstract{
+ ゼロショット画像復元手法であるDDNM（Denoising Diffusion Null-space Model）は、事前学習済みの拡散に基づく画像生成モデルを使用しており、タスク固有の学習を行うことなく、さまざまな画像復元タスクに適用することができます。 しかし、DDNMはImageNetで学習された拡散モデルをバックボーンとしているため、その復元能力は、学習画像のクラス数が限られていることに強く制約される。一方、潜在空間において拡散に基づく生成を行う潜在拡散モデル（LDM）は、より大規模なデータセットで学習され、多種多様な画像を生成できることが知られている。LDMをDDNMに適用する際の課題として、DDNMでは劣化演算子が線形演算子で表現できることを利用した処理が必要であるのに対し、LDMでは前処理として非線形エンコーダを用いることが挙げられる。本論文では、潜在空間においても原画像の空間的特徴が保持されることに着目し、画像復元タスクとしてインペインティングに着目することで、より多様な画像の復元を可能とする手法を提案する。実験の結果、提案手法はタスクに特化した学習を行うことなく、多様で高精度なインペインティングが可能であることが示された。
+}
+]
+
+%本文
+
+\section{はじめに}
+
+画像のインペインティングは、入力画像の欠落した領域や特定の領域を視覚的に首尾一貫した内容で埋めることを目的としており、美術品のデジタル修復や写真からの不要なオブジェクトの除去など、幅広い用途がある。
+
+既存の画像インペインティング手法~\cite{IizukaSIGGRAPH2017,Yu_2018_CVPR,yu2019free,lama} のほとんどは、現実的でシームレスなインペインティング画像を生成するのに有効であることが証明されている生成的逆行ネットワーク（GAN）~\cite{NIPS2014_GAN}に依存している。
+
+GANに代わる有望な選択肢として、ノイズ除去拡散モデルを画像インペインティング ~\cite{lugmayr2022repaint,avrahami2022-blended,xie2023smartbrush} や一般的な画像復元タスク（画像インペインティングを含む） ~\cite{wang2022zeroshot,kawar2022denoising} に適用することが、GANと比較してより首尾一貫した自然な画像を生成する能力により、大きな人気を集めている。
+
+Wangらは、Denoising Diffusion Null-space Model (DDNM)~\cite{wang2022zeroshot} を提案し、Denoising Diffusion Modelをバックボーンとして、画像インペインティングを含む様々な画像復元タスクを解決する。DDNMの課題は、DDNMで使用されるノイズ除去拡散モデルが、1,000クラスの画像分類データセットであるImageNetデータセットで学習されることである。したがって、DDNMは、ImageNetの1,000クラスに含まれない「馬」や「メロン」のような画像を適切にインペイントできない可能性がある。
+
+Recently, Latent Diffusion Models (LDM)~\cite{rombach2022highresolution} have been proposed to generate more diverse and realistic images by using a diffusion model in a low-dimensional latent space obtained bya variational autoencoder (VAE). SD（Stable Diffusion）~\cite{rombach2022highresolution}はLDMの公開モデルの一つであり、50億枚の画像からなる大規模データセットで学習され、多種多様なテキストプロンプトから知覚的に矛盾のない画像を生成できることが知られている。しかし、SDにおけるVAEのエンコーダは非線形であるため、SDをDDNMの基幹として直接利用することは困難である。
+
+本論文では、DDNMとSDを組み合わせたゼロショット画像インペインティング手法を提案する。我々は、潜在空間においても原画像の空間的特徴が保存されるという事実に着目する。この重要な観察に基づき、逆拡散反復において、潜在空間変数上の既知の（欠損していない）領域を、与えられた領域の潜在空間表現で上書きすることを提案する。実験結果は、提案手法がタスク固有の訓練なしに、高速かつ正確なインペインティングが可能であることを示している。
+
+\section{preliminaries}
+\subsection{A. Denoising Diffusion Models for Image Generation}
+Denoising Diffusion Probabilistic Models (DDPM)~\cite{ho2020denoising} is a representative method of image generating diffusion models~\cite{ho2020denoising,song2021denoising,Dhariwal2021_Guided}.DDPMの拡散（順方向）過程は、各ステップが徐々に画像にノイズを付加していくマルコフ連鎖として記述することができ、以下のように表される。
+\begin{equation}
+	\x_{t}=\sqrt{\bar{\alpha_t}}\x_{0}+\sqrt{1-\bar{\alpha_{t}}}\epsilon, \ \epsilon\sim N(0,\I)
+\label{eq:diffusion}
+\end{equation}
+ここで、$t$ は全体の$T$ステップの中の特定のステップを指す。さらに、ステップ$t$におけるノイズレベルはそれぞれ、$\alpha_{t}$と$\bar{\alpha}_{t}=\prod_{s=1}^{T}\alpha_{s}$であり、また、$\epsilon$はガウシアンノイズである。
+
+拡散モデルは、ステップ$t$で原画像に付加されたノイズ$\epsilon$を推定する学習済みニューラルネットワーク$\epsilon_{\theta}(\x_{t},t)$を用いて、ステップ$T$から$0$までの逆拡散（逆方向）過程を反復することで画像生成を実現する。DDPMの拡張版であるDDIM(Denoising Diffusion Implicit Models) ~\cite{song2021denoising}の逆拡散過程を以下に示す.
+\begin{align}
+    \x_{t-1} = &\sqrt{\bar{\alpha}_{t-1}}\left(\frac{1}{\sqrt{\bar{\alpha_t}}}\left(\x_t-\sqrt{1-\bar{\alpha_t}}\epsilon_\theta(\x_t,t)\right)\right)\nonumber \\ 
+    &+
+    \sqrt{1-\bar\alpha_{t-1}-\sigma_t^2(\eta)}\epsilon_{\theta}
+    (\x_{t},t)+\sigma_{t}(\eta)\epsilon
+    \label{eq:DDIM_reverse}
+\end{align}
+ここで、$\A^{\dag}$ は $\A$ のムーア・ペンローズ一般逆行列であり、$\I$ は単位行列である。これにより、$\hat{\x}_{0|t}$ は $\y$ と一致し、すなわち、$\y=\A\hat{\x}_{0|t}$ が常に満たされる。また、$\x_{t-1}$ は式~\eqref{eq:DDIM_reverse}によって得られる。上記の処理を交互に繰り返すことで、実在性と一貫性の2つの特性を満たす画像を復元することができる。
+
+\subsection{Denoising Diffusion Null-space Model (DDNM)}
+DDNMは拡散モデルに基づく画像復元手法であり、画像の超解像、白黒画像のカラー化、画像インペインティングを実現する。ノイズレスの場合、DDNM の観測モデルは $\y=\A\x^\star$ であり、$\x^\star$ は原画像、$\A$ は線形劣化演算子、$\y$ は劣化画像である。$\A$を変えることで、様々な画像復元タスクの観測モデルを定式化できる。
+
+DDNMの要点は、画像復元を、推定画像の実在性の向上と劣化画像との整合性の 維持の2つのステップに分け、両者を交互に行うことである。DDNMはまず、次式に示すように、事前に学習させた拡散モデルを用いて推定画像の実在性を向上させる
+\begin{equation}
+	\x_{0|t}=\frac{1}{\sqrt{\bar{\alpha_t}}}\left(\x_{t}-\sqrt{1-\bar{\alpha}_t}\epsilon_{\theta}(\x_{t},
+	t)\right),
+\end{equation}
+ここで、$\x_{t}$と$\x_{x|0}$はそれぞれ$t$番目のステップにおける推定ノイズ画像と原画像である。この処理により推定画像の実在性は向上するが、得られた$\x_{t}$は観測画像$\y$との整合性が保証されない。観測画像$\y$との整合性を保つために、DDNMでは、次式に示すように、ヌル空間射影と呼ばれる処理を適用する。
+\begin{equation}
+	\hat{\x}_{0|t}=\A^{\dag}\A\y+(\I-\A^{\dag}\A)\x_{0|t}
+ \label{eq:null_space_projection}
+\end{equation}
+ここで$\A^{\dagger}$は$\A$のムーアペンローズ一般逆行列、$\I$はインデント行列である。これにより$\hat{\x}_{0|t}$は$\y$と一致する、すなわち$\y=\A\hat{\x}_{0|t}$が常に満たされる。$\x_{t-1}$は式~\eqref{eq:DDIM_reverse}が得られる。以上の処理を交互に繰り返すことで、実在性と一貫性の2つの性質を満たす画像を復元することができる。
+
+\subsection{潜在拡散モデル (LDM)}
+DDPMは高次元画素空間で直接動作するため、これらのモデルの学習と推論には大量の計算リソースが必要となる。このリソース消費のため、DDPMの公的に利用可能な事前学習済みモデルは、せいぜい1,000クラスの画像分類データセットであるImageNet上での学習によってのみ得られる。ImageNetには 「馬 」のような非常に一般的なクラスが含まれていないため、DDPMをバックボーンとするDDPMやDDNMの画像生成や画像復元能力が強く制限される。
+
+この問題に対処するために、Rombachらは、事前に学習された変分オートエンコーダ（VAE）によって得られる低次元の潜在空間において拡散に基づく画像生成を行う潜在拡散モデル（LDM~\cite{rombach2022highresolution}を提案した。潜在空間における拡散のアイデアにより、LDMは比較的小さな計算資源で学習することが可能となった。
+Stable Diffusion (SD)~\cite {rombach2022highresolution}は、LDMの事前学習済みモデルで、LAION-5Bデータセット~\cite{schuhmann2022laion5b}を学習に使用する。LAION-5Bは50億枚のキャプション付き画像から構成され、幅広い画像カテゴリをカバーしている。また、SDは、画像生成の条件付けにCLIP（Contrastive Language-Image Pre-training~\cite{Radford2021-CLIP}を用いている。このように、DDNMの画像生成のバックボーンをDDPMからSDに変更することで、復元画像のカテゴリが大幅に拡大することが期待できる。
+
+しかし、SDをDDNMに適用するのは簡単ではない。$z^\star$を原画像$\x^\star$に対応する潜在空間変数とすると、観測モデルは$\y=\A(D(\z^\star))$と定式化でき、ここで$D$はVAEのデコーダである。この場合、劣化演算子AとVAEデコーダDの合成はもはや線形演算子ではなくなるため、潜在空間において式~\eqref{eq:null_space_projection}と同様のヌル空間射影を行うことは困難となる。
+
+\section{提案手法}
+推定画像の実在性を高めるために、潜在拡散モデルを用いたゼロショット画像インペインティングを提案する。観測モデルは $\y=\M_p\odot D(\z^\star)$ であり、$\M_p$ は画素領域の2値マスクである。上述したように、合成演算子$M_p \odot(D(\cdot))$の合成は非線形であるため、潜在空間でのDDNMの実行は些細なことではない。しかし、VAEエンコーダによって画像が潜 在空間に投影された後でも、原画像の空間的特徴の大部分は保存されるので、潜 在空間における画像インペインティングの場合、ヌル空間投影を次のように書き直せる ことがわかった：
+\begin{equation}
+	\hat{\z}_{0|t}=\M_{l} \odot E(\y)+(\I-\M_{l})\odot \z_{0|t}
+	\label{eq:NSP_in_latetnt_space}
+\end{equation}
+$\z_{0|t}$は、潜在空間拡散過程におけるステップで復元された潜在変数であり、$\odot$は要素毎の乗算を表します。$\hat{\z}_{0|t}$は、観測値$\y$と一致する調整された潜在変数であり、$\M_{l}$は潜在空間のマスクです。
+
+潜在空間のマスク$M_{l}$を得るために、まず$M_{p}$に最近傍補間によるダウンサンプリングを適用する。次に、マスク境界を2ピクセル拡張し、補間領域と非補間領域の境界を平滑化して$M_{l}$を得る。
+
+$\hat{\z}_{0|t}$ から、式~\eqref{eq:DDIM_reverse}に示すDDIMと同様の処理により、後続の$t-1$ステップの潜在変数を以下のように推定できる：
+\begin{equation}
+	% \z_{t-1}=\hat{\z}_{0|t}+\sqrt{1-\bar{\alpha}_{x-1}-\mu\sigma^{2}_{x}}\epsilon
+	% _{\theta}(\z_{t},t)+\mu\sigma_{t}\epsilon
+ \z_{t-1}=\sqrt{\bar{\alpha}_{t-1}}\hat{\z}_{0|t}+\sqrt{1-\bar{\alpha}_{t-1}-\sigma_t^2(\eta)}\epsilon_{\theta}(\z_t,t)+\sigma_t(\eta) \epsilon_{\z},
+\end{equation}
+$\epsilon_{\z}$はランダムなガウスノイズで、$\eta$はインペインティングアルゴリズムの確率的挙動を制御するパラメータである。$\eta$が大きいほど、塗りつぶし画像はより多様になる。
+
+最後に、潜在空間変数$z_0$にデコーダ$D$を適用すると、塗りつぶし画像$\x_0$が得られる。提案手法の画像塗りつぶしアルゴリズム全体を
+%!!!!!!!!!!!!!!!!アルゴリズム1と図1に示す。
+
+我々の提案手法は、Differential Diffusion (DD)~\cite{Levin2023differential}と密接に関連しているが、主な違いは、DDが画像編集タスクに焦点を当てていることである。
+DDの潜在空間マスクは2値ではなく、逆拡散処理中に推定する画素値を徐々に増加させることで、与えられた領域と推定領域の境界を平滑化する。DDを画像インペインティングに適用することは可能であるが、既知領域の画素値も変化してしまうため、観察画像と矛盾したインペインティング画像になってしまう。
+
+
+\section{実験}
+提案手法を定量的・定性的に評価するための実験を行った。
+\subsection{Setup}
+
+{\bf Baselines.}
+定性的評価では、DeepFill v2~\cite{Yu_2018_CVPR}、LaMa~\cite{lama}、DDNM~\cite{wang2022zeroshot}をベースラインとして使用しました。定量的評価では、DDNMをベースラインとした。DDNMと我々の提案手法はゼロショットであるが、DeepFill v2とLaMaはタスク固有のトレーニングが必要であることに注意。
+
+{\bf 実装の詳細。}
+提案手法のLDMバックボーンとしてStable Diffusion v1.4~\cite{rombach2022highresolution} を用いた。時間ステップ$T$を30、$\eta$を0.85に設定し、他のパラメータはデフォルト値に設定した。
+
+DeepFill v2以外のベースライン手法は、公式実装を使用。DeepFill v2には非公式のPyTorch実装~\cite{DFv2_github}を採用。我々は、DeepFill v2とLaMaの事前学習済みモデルを使用し、LaMaはPlaces-2データセット~\cite{Zhou2018_Places}で学習済みである。オリジナルのDDNMは256 $\times$ 256ピクセルの画像にしか対応していないため、DDNMの一般化版~\cite{Wang2023_Unlimited} に相当し、任意の解像度の画像に適用できる「hq demo」コードを採用した。DDNMのバックボーンとして、ImageNet-1k ~\cite{Imagenet-1k}を用いてクラス無条件設定で学習したガイド拡散モデル~\cite{Dhariwal2021_Guided}を選択した。
+DDNMのパラメータは、推論を高速化するために時間ステップ$T$を25に設定した以外は、公式実装のデフォルト値に設定した。
+
+{\bf Datasets.}
+ベンチマークには3つのデータセットを用いた： Berkeley Segmentation Data Set (BSDS500) ~\cite{MartinFTM01}、ImageNet1k ~\cite{Imagenet-1k}、ImageNet-O ~\cite{Hendrycks_2021_CVPR}。BSDS500データセットでは、テストセットの200画像すべてを使用し、ImageNet-1kでは、検証セットの1,000クラスから1画像ずつサンプリングした。ImageNet-Oでは、200クラスからそれぞれ5枚の画像をサンプリングした。すべての画像は512ピクセルの短いエッジを持つようにリサイズされ、512 $\times$ 512ピクセルの領域はリサイズされた画像の中心から切り取られた。ImageNet-OはImageNet-1kデータセットに含まれていないクラスの画像から構成されていることに注意。DDNMのバックボーンであるガイド拡散はImageNet-1kで学習されているため、BSDS500やImageNet-Oに対するインペインティング性能が低下する可能性がある。
+
+{\bf Metrics.}
+Fréchet inception distance (FID) ~\cite{NIPS2017_8a1d6947}を用いて、塗りつぶし画像の品質を評価する。
+
+\subsection{定量的評価}
+表Iは、ベースライン法と本提案法による、原画像と塗 り込み画像のFID値である。画素空間マスク$\M_p$として、168 $\times$ 168画素と136 $\times$ 136画素の2つのセンターマスクを用いる。この表から、提案手法は全てのデータセットとマスクサイズにおいて、最先端のゼロショット画像塗りつぶし手法の一つであるDDNMを凌駕していることがわかる。
+
+提案手法の推論時間は、NVIDIA RTX 4080 GPU1台で1画像あたり約3秒であるのに対し、DDNMは同じGPUで1画像あたり約1分40秒かかる。つまり、提案手法はDDNMに比べて大幅な高速化（約33倍）を達成しています。
+
+提案手法の特徴の一つは、テキストによるプロンプトを利用して、塗り替えプロセスをガイドできることである。
+そのため、入力画像からキャプションを推定する手法であるBootstrapping Language-Image Pre-training (BLIP) ~\cite{li2022blip}を原画像に適用し、「理想的な」テキストプロンプトを得る。この理想的なプロンプトを用いた提案手法のFID値を表IにOurs+BLIP*として示す。
+この結果から、理想的なプロンプトを用いることでインペイントされた画像は、他の手法よりもオリジナル画像に近い。
+
+ImageNet-Oは、ImageNet1kで学習した画像分類ネットワークが誤認識を引き起こすように意図的に選択された画像で構成されており、BLIPの基幹であるCLIPのゼロショット画像認識性能も低いことが知られている~\cite{zhang2024longclip}。このようなデータセットの特徴が、BLIPのキャプション予測能力、および予測されたキャプションを用いた提案手法のインペイント能力に悪影響を及ぼしていると考えられる。
+
+\subsection{定性評価}
+ベースライン手法と我々の提案手法による塗りつぶし画像の視覚的比較を図2に示す。1行目と2行目の画像は、提案手法が現実的な内容で欠損領域を塗りつぶすことができることを示している。また、Places-2データセットで学習したDeepfill v2とLaMaも、1行目の建物画像の塗りつぶしに成功している。
+しかし、2行目と3行目の画像では、Deepfill v2とLaMaによる塗りつぶし画像は不鮮明な結果となり、入力画像と一致したコンテンツを生成できない。すべての例において、DDNMによる塗りつぶし結果は非現実的であり、欠落領域にアーティファクトが含まれている。
+
+\section{結論}
+我々は、潜在空間における潜在拡散モデルとヌルスペース射影を組み合わせたゼロショット画像インペインティング法を提案した。実験結果より，提案手法は定量的・定性的評価においてベースライン手法を上回った．また、潜在空間での処理により、従来の手法と比較して約33倍の高速化を実現した。本手法の性能は、原画像から得られた理想的なプロンプトを用いるとさらに向上する。今後の課題として、部分的にマスクされた画像から適切なプロンプトを取得する方法を検討する。
+
+\section*{Acknowledgment}
+本研究は、財団法人電気通信普及財団の研究助成、および日本学術振興会科学研究費補助金 JP23K03871 の一部を受けた。
+
+\section{参考文献}
+
+\bibliographystyle{ieeetr_miyata}
+\bibliography{refs}
+
+
+\simplefootnotetext{
+千葉工業大学 先進工学部 知能メディア工学科\\
+〒\hspace{0pt}275--0016 千葉県習志野市津田沼2-17-1\\
+Phone: 047-478-0136\\
+E-mail: takamichi.miyata@it-chiba.ac.jp}
+\end{document}
