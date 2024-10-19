@@ -13,17 +13,50 @@
       nixpkgs,
       flake-utils,
     }:
-flake-utils.lib.eachDefaultSystem(
-  system:
-let
-  pkgs = import nixpkgs {inherit system;};
-in
-  {
-    devShell = pkgs.mkShell {
-      buildInputs = [
-	pkgs.texliveFull
-      ];
-    };
-  }
-);
+    flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        pkgs = import nixpkgs { inherit system; };
+        textlintrc = (pkgs.formats.json { }).generate "textlintrc" {
+          plugins = {
+            latex2e = true;
+          };
+
+          rules = {
+            preset-ja-technical-writing = {
+              max-kanji-continuous-len = {
+                max = 15;
+              };
+              ja-no-mixed-period = {
+                periodMark = ".";
+              };
+              arabic-kanji-numbers = false;
+              ja-no-weak-phrase = true;
+            };
+          };
+        };
+      in
+      {
+        devShell = pkgs.mkShell {
+          packages = with pkgs; [
+            nodejs
+            (textlint.withPackages [
+              textlint-rule-preset-ja-technical-writing
+              textlint-plugin-latex2e
+            ])
+          ];
+          buildInputs = [
+            pkgs.texliveFull
+            pkgs.nodejs
+            # pkgs.textlint
+            # pkgs.textlint-rule-preset-ja-technical-writing
+            # pkgs.textlint-plugin-latex2e
+          ];
+          shellHook = ''
+            unlink .textlintrc 
+            ln -s ${textlintrc} .textlintrc 
+          '';
+        };
+      }
+    );
 }
