@@ -31,6 +31,12 @@
                 periodMark = ".";
               };
               arabic-kanji-numbers = false;
+              no-mix-dearu-desumasu = {
+                preferInHeader = "である";
+                preferInBody = "である";
+                preferInList = "である";
+                strict = true;
+              };
               ja-no-weak-phrase = true;
             };
           };

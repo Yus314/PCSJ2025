@@ -7,7 +7,7 @@
 
 \usepackage{amsmath}
 \usepackage{graphicx}
-\usepackage{subfigure}
+%\usepackage{subfigure}
 \usepackage{subcaption}
 \graphicspath{{./figure/}}
 \def\x{{\mathbf{x}}}
@@ -34,128 +34,137 @@
 
 
 \twocolumn[\centering
-% 日本語タイトル
-\JTitle{事前学習済み潜在拡散モデルを用いたゼロショット画像補完}
-% 英語タイトル
-\ETitle{Zero-shot image inpainting using a pre-trained latent diffusion model}
-% 著者
-\JEAuthor{柿沼\ 祐介$^\dag$}{Yusuke Kakinuma$^\dag$}{40mm}
-\JEAuthor{宮田\ 高道$^\dag$}{Takamichi Miyata$^\dag$}{40mm}
-\JEAuthor{細野\ 海人$^\ddag$}{Kaito Hosono$^\ddag$}{40mm}
-\JEAuthor{木下\ 宏揚$^\ddag$}{Hirotsugu Kinoshita$^\ddag$}{40mm}
-% 所属
-\JEAffiliation{$^\dag$千葉工業大学}{$^\dag$Chiba Institute of Technology}{50mm}
-\JEAffiliation{$^\ddag$神奈川大学}{$^\ddag$University of Kanagawa}{50mm}\\
+	% 日本語タイトル
+	\JTitle{事前学習済み潜在拡散モデルを用いたゼロショット画像補完}
+	% 英語タイトル
+	\ETitle{Zero-shot image inpainting using a pre-trained latent diffusion model}
+	% 著者
+	\JEAuthor{柿沼\ 祐介$^\dag$}{Yusuke Kakinuma$^\dag$}{40mm}
+	\JEAuthor{宮田\ 高道$^\dag$}{Takamichi Miyata$^\dag$}{40mm}
+	\JEAuthor{細野\ 海人$^\ddag$}{Kaito Hosono$^\ddag$}{40mm}
+	\JEAuthor{木下\ 宏揚$^\ddag$}{Hirotsugu Kinoshita$^\ddag$}{40mm}
+	% 所属
+	\JEAffiliation{$^\dag$千葉工業大学}{$^\dag$Chiba Institute of Technology}{50mm}
+	\JEAffiliation{$^\ddag$神奈川大学}{$^\ddag$University of Kanagawa}{50mm}\\
 
-% 概要
-\Abstract{
-  ゼロショット画像復元手法であるDDNM（Denoising Diffusion Null-space Model）は，事前学習済みの拡散に基づく画像生成モデルを使用しており，タスク固有の学習を行うことなく，さまざまな画像復元タスクに適用することができる．しかし，DDNMはImageNetで学習された拡散モデルを用いて生成を行なうため，その復元能力は，学習画像のクラス数が限られていることに強く制約される．一方，潜在空間において拡散に基づく生成を行なうlatent diffusion models（以下LDM）は，より大規模なデータセットで学習され，多種多様な画像を生成できることが知られている．LDMをDDNMに適用する際の課題として，DDNMでは劣化演算子が線形演算子で表現できることを利用した処理が必要であるのに対し，LDMでは前処理として非線形エンコーダを用いていることが挙げられる．本論文では，潜在空間においても原画像の空間的特徴がある程度保持されることに着目し，画像復元タスクとしてに着目することで，より多様な画像の復元を可能とする手法を提案する．実験の結果，提案手法はタスクに特化した学習を行うことなく，多様で高精度な補完が可能であることが示された．
-}
+	% 概要
+	\Abstract{
+		ゼロショット画像復元手法であるDDNM（Denoising Diffusion Null-space Model）は，事前学習済みの拡散に基づく画像生成モデルを使用しており，タスク固有の学習を行うことなく，さまざまな画像復元タスクに適用することができる．しかし，DDNMはImageNetで学習された拡散モデルを用いて生成を行なうため，その復元能力は，学習画像のクラス数が限られていることに強く制約される．一方，潜在空間において拡散に基づく生成を行なうlatent diffusion models（以下LDM）は，より大規模なデータセットで学習され，多種多様な画像を生成できることが知られている．LDMをDDNMに適用する際の課題として，DDNMでは劣化演算子が線形演算子で表現できることを利用した処理が必要であるのに対し，LDMでは前処理として非線形エンコーダを用いていることが挙げられる．本論文では，潜在空間においても原画像の空間的特徴がある程度保持されることに着目し，画像復元タスクを画像補完に絞ることで，より多様な画像の復元を可能とする手法を提案する．実験の結果，提案手法はタスクに特化した学習を行うことなく，多様で高精度な補完が可能であることが示された．
+	}
 ]
 
 %本文
 
 \section{はじめに}
 
-既存のゼロショット画像復元の一種であるDenoising Diffusion Null-space Model (DDNM)~\cite{wang2022zeroshot}は，学習済みのノイズ除去拡散モデルを用いて，画像補完を含む様々な画像復元タスクを解決する．DDNMの課題は，使用する拡散モデルが1,000クラスの画像分類データセットであるImageNetで学習されていることである．そのため，DDNMは，ImageNetの1,000クラスに含まれない「馬」や「メロン」のような画像を適切に補完できない可能性がある．
+既存のゼロショット画像復元の一種であるDenoising Diffusion Null-space Model (DDNM)~\cite{wang2022zeroshot}は，学習済みのノイズ除去拡散モデルを用いて，画像補完を含む様々な画像復元タスクを解決する．DDNMの課題は，使用する拡散モデルが1,000クラスの画像分類データセットであるImageNetで学習されていることである．そのため，DDNMは，ImageNetの1,000クラスに含まれない「馬」や「メロン」のような画像を適切に復元できない可能性がある．
 
 これに対し近年，変分オートエンコーダによって得られる低次元の潜在空間における拡散モデルを使用することで，テキストに対応する多様な画像を生成できるLatent Diffusion Models(LDM)~\cite{rombach2022highresolution}ならびにその学習済みモデルの一つであるSD（Stable Diffusion）~\cite{rombach2022highresolution}が公開された．以上の背景のもと，本研究ではSDとDDNMを適切に組み合わせることにより、高速かつ正確な補完を可能とする画像補完手法を提案する．
 
 \section{既存手法}
 
-\textbf{DDNM}は，拡散モデルを用いた画像生成技術の一つである DDPM（Denoising Diffusion Probabilistic Models）を利用することで，画像の超解像，白黒画像のカラー化，画像補完，圧縮センシングにおける画像復元，ボケ除去など，(劣化の過程が線形作用素で記述できる) 多様な画像復元を実現する手法である．DDPMは，劣化画像を復元する処理を，現実性の向上および劣化画像との一貫性の維持の２つの処理に分割し，それらを交互に適用するアルゴリズムである．なお，拡散モデルの生成過程では，ステップを指す$t\in{0,1,...,T}$は通常と異なり$T$から0に向かって逆に進むことに注意されたい．
+\textbf{DDNM}は，拡散モデルを用いた画像生成技術の一つである DDPM（Denoising Diffusion Probabilistic Models）を利用することで，画像の超解像，白黒画像のカラー化，画像補完，圧縮センシングにおける画像復元，ボケ除去など，(劣化の過程が線形作用素で記述できる) 多様な画像復元を実現する手法である．DDPMは，劣化画像を復元する処理を，現実性の向上および劣化画像との一貫性の維持の２つの処理に分割し，それらを交互に適用するアルゴリズムである．なお，拡散モデルの生成過程では，ステップを指す$t\in{0,1,...,T}$は$T$から0に向かって進むことに注意されたい．
 
-いま，$\x$を劣化のない原画像，$\A$を線形劣化作用素，$\y$を劣化画像とすると，それらの関係は$\y=\A\x$と表わせる．直前の$t$ステップ目における復元画像を$\x_{t}$とすると，DDNMでは現実性を向上させるために，学習したノイズ除去ネットワークによって，この$\x_t$から復元画像の推定値である$\x_{0|t}$を推定する．しかしながら，このステップのみでは得られた$\x_{0|t}$が一貫性を満たす保証はない．そこで次に，$\x_{0|t}$を$\A$の零空間射影した結果から，
+いま，$\x$を劣化のない原画像，$\A$を線形劣化作用素，$\y$を劣化画像とすると，それらの関係は$\y=\A\x$と表わせる．DDNMの$t$ステップ目の処理では，まず現実性を向上させるために，ノイズ除去ネットワークを用いて当該ステップの画像$\x_{t}$
+から復元画像の推定値である$\x_{0|t}$を推定する．しかしながら，このステップのみでは得られた$\x_{0|t}$が一貫性を満たす保証はない．そこで次に，$\x_{0|t}$を$\A$の零空間射影した結果から，
 $
 	\hat{\x}_{0|t}=\A^{\dag}\A\y+(\I-\A^{\dag}\A)\x_{0|t}
-        \label{eq:null_space_projection}
-        $
-によって一貫性を満たす$\hat{\x}_{0|t}$を得る．ここで$\A^{\dagger}$は$\A$のムーアペンローズ一般逆行列であり，$\I$は単位行列である．これにより$\hat{\x}_{0|t}$と$\y$は$\y=\A\hat{\x}_{0|t}$を常に満たす．以上の処理を交互に繰り返すことで，現実性と一貫性の2つの性質を満たす画像を復元できる．
+	\label{eq:null_space_projection}
+$
+によって一貫性を満たす$\hat{\x}_{0|t}$を得る．ここで$\A^{\dagger}$は$\A$のムーアペンローズ一般逆行列であり，$\I$は単位行列である．これにより$\hat{\x}_{0|t}$は$\y=\A\hat{\x}_{0|t}$を常に満たす．以上の処理を交互に繰り返すことで，現実性と一貫性の両方を満たす画像を復元できる．
 
-\textbf{LDM}~\cite{rombach2022highresolution}は，学習済みの変分オートエンコーダを用いて画像をより次元の小さい潜在空間上に射影し，その潜在空間上で画像生成処理を行うことでDDPMの学習効率を大きく向上させた画像生成モデルである．LDMの学習済みのモデルの一つであるStable Diffusion（SD）は，50億枚の画像からなるLAION-5Bを学習に使用しており，広い範囲の画像をテキストから生成できる．DDNMの画像生成モデルを学習済みDDPMからSDへと変更することで，復元できる画像のカテゴリを大幅に拡大できることが期待される．
+\textbf{LDM}~\cite{rombach2022highresolution}は，学習済みの変分オートエンコーダ (VAE) を用いて画像をより次元の小さい潜在空間上に射影し，その潜在空間上で画像生成処理を行うことでDDPMの学習効率を大きく向上させた画像生成モデルである．LDMの学習済みのモデルの一つであるStable Diffusion（SD）は，50億枚の画像からなるLAION-5Bを学習に使用しており，広い範囲の画像をテキストから生成できる．DDNMの画像生成モデルを学習済みDDPMからSDへと変更することで，復元できる画像のカテゴリを大幅に拡大できることが期待される．
 
 
 \section{提案手法}
-推定画像の現実性を高めるために，潜在拡散モデルを用いたゼロショット画像補完を提案する．観測モデルは$\y=\M_p\odot D(\z^\star)$，であり，ここで$\M_p$は画素領域の2値マスクである．前述のように，合成演算子$M_p \odot(D(\cdot))$の合成は非線形であるため，潜在空間でのDDNMの実行は自明ではない．本研究では，潜在空間においても入力画像の空間的特徴がある程度保存されていることに着目し，(画像補完タスクにおける)潜在空間での零空間射影を次のように書き直すことを提案する．
+推定画像の現実性を高めるために，潜在拡散モデルを用いたゼロショット画像補完を提案する．観測モデルは$\y=\M_p\odot D(\z)$，であり，ここで$D$はVAEのデコーダ，$\z$は原画像と対応する潜在変数であり，$\M_p$は画素領域の2値マスクである．合成演算子$M_p \odot(D(\cdot))$の合成は非線形であるため，潜在空間でのDDNMの実行は自明ではない．本研究では，潜在空間においても入力画像の空間的特徴がある程度保存されていることに着目し，(画像補完タスクにおける)潜在空間での零空間射影を次のように書き直すことを提案する．
 \begin{equation}
 	\hat{\z}_{0|t}=\M_{l} \odot E(\y)+(\I-\M_{l})\odot \z_{0|t}
 	\label{eq:NSP_in_latetnt_space}
 \end{equation}
-ここで，$\z_{0|t}$は，潜在空間拡散過程におけるステップで復元された潜在変数であり，$\odot$は要素毎の乗算を，$\M_{l}$は潜在空間のマスクを表わす．
+ここでEはVAEのエンコーダ，$\z_{0|t}$は潜在空間拡散過程におけるステップで復元された潜在変数であり，$\odot$は要素毎の乗算を，$\M_{l}$は潜在空間のマスクを表わす．
 潜在空間のマスク$M_{l}$は，$M_{p}$に最近傍補間によるダウンサンプリングを適用した後，マスク境界を2ピクセル拡張することによって得られる．
-
-得られた$\hat{\z}_{0|t}$から$t-1$ステップの潜在変数$\z_{t-1}$を得る処理は，DDIMと同じものを用いる．以上の処理を$t=0$になるまで繰り返し，潜在空間変数$\z_0$にデコーダ$D$を適用することで，補完画像$\x_0$が得られる．
+提案手法では，$\hat{\z}_{0|t}$から$t-1$ステップの潜在変数$\z_{t-1}$を得る処理は，DDIMと同じものを用いる．以上の処理を$t=0$になるまで繰り返し，潜在空間変数$\z_0$に$D$を適用することで，補完画像$\x_0$が得られる．
 
 
 \section{実験}
-\textbf{設定}　提案手法の実験において、DDNM~\cite{wang2022zeroshot}を比較手法として使用した．テスト用のデータセットとしては，BSDS500，ImageNet1k，ImageNet-O，の3つを用い，それぞれから200，1000，1000枚の画像をサンプリングした．すべての画像は短辺が512ピクセルとなるようにリサイズされ，168$\times$168ピクセルの領域はリサイズされた画像の中心から切り取られた．評価指標をしてはFréchet inception distance (FID) を用いた．
+\textbf{設定}　提案手法の性能を評価するための比較手法として，DDNM~\cite{wang2022zeroshot}を使用した．テスト用のデータセットとしては，BSDS500，ImageNet1k，ImageNet-O，のそれぞれから200，1000，1000枚の画像を選んだものを用いた．すべての画像は短辺が512ピクセルとなるようにリサイズされ，その中央に168$\times$168ピクセルおよび136$\times$136ピクセルの欠損領域を設定した．評価指標をしてはFréchet inception distance (FID) を用いた．
 
 
-\def\figscale{0.12}
+\def\figscale{0.112}
 
 \begin{figure}[tbp]
-    \begin{tabular}{cc}
-      %\begin{minipage}[t]{0.45\hsize}
-        \centering
-        \includegraphics[keepaspectratio, scale=\figscale]{figures/217090_input.png}
-       % \subcaption{Composite}
-        \label{composite}
-      %\end{minipage} &
-     % \begin{minipage}[t]{0.45\hsize}
-        \centering
-        \includegraphics[keepaspectratio, scale=\figscale]{figures/217090_DDNM.png}
-        % \subcaption{Gradation}
-        \label{Gradation}
-      %\end{minipage} \\
-   
-      %\begin{minipage}[t]{0.45\hsize}
-        \centering
-        \includegraphics[keepaspectratio, scale=\figscale]{figures/217090_ours.png}
-       %\subcaption{Fill}
-        \label{fill}
-      %\end{minipage} &
-      %\begin{minipage}[t]{0.45\hsize}
-        \centering
-        \includegraphics[keepaspectratio, scale=\figscale]{figures/217090_ours+BLIP.png}
-        % \subcaption{Transform}
-        \label{transform}
-      %\end{minipage} 
-    \end{tabular}
-    \caption{既存手法と提案手法の定性的な比較．入力画像 (a) は，BSDS500データセットに含まれるオリジナル画像の一部で，168$\times$168をマスク済み}
-    \label{fig:main_result_images}
-  \end{figure}
+	\begin{tabular}{llll}
+		\begin{minipage}[t]{0.2\hsize}
+			\centering
+			\includegraphics[keepaspectratio, scale=\figscale]{figures/217090_input.png}\\
+			\vspace{1mm}
+			\includegraphics[keepaspectratio, scale=\figscale]{figures/15062_input.png}
+			\subcaption{原画像+マスク}
+			\label{composite}
+		\end{minipage} &
+		\begin{minipage}[t]{0.2\hsize}
+			\centering
+			\includegraphics[keepaspectratio, scale=\figscale]{figures/217090_DDNM.png}\\
+			\vspace{1mm}
+			\includegraphics[keepaspectratio, scale=\figscale]{figures/15062_DDNM.png}
+
+			\subcaption{DDNM}
+			\label{Gradation}
+		\end{minipage}  &
+
+		\begin{minipage}[t]{0.2\hsize}
+			\centering
+			\includegraphics[keepaspectratio, scale=\figscale]{figures/217090_ours.png}\\
+			\vspace{1mm}
+			\includegraphics[keepaspectratio, scale=\figscale]{figures/15062_ours.png}
+			\subcaption{提案手法}
+			\label{fill}
+		\end{minipage}  &
+		\begin{minipage}[t]{0.2\hsize}
+			\centering
+			\includegraphics[keepaspectratio, scale=\figscale]{figures/217090_ours+BLIP.png}\\
+			\vspace{1mm}
+			\includegraphics[keepaspectratio, scale=\figscale]{figures/15062_ours+BLIP.png}
+			\subcaption{提案手法+BLIP (参考)}
+			\label{transform}
+		\end{minipage}
+	\end{tabular}
+	\caption{既存手法と提案手法の定性的な比較．}
+	\label{fig:main_result_images}
+\end{figure}
 
 
 
-\textbf{結果}　表~\ref{tb:main_result}は，既存手法と本提案法による原画像と補完画像の間のFIDである．画素空間マスク$\M_p$として，168$\times$168画素と136$\times$136画素の2つのセンターマスクを用いる．この表から，提案手法は全てのデータセットとマスクサイズにおいて，最先端のゼロショット画像補完手法の一つであるDDNMを凌駕していることがわかる．
+\textbf{結果}　表~\ref{tb:main_result}は，既存手法と提案法による原画像と補完画像の間のFIDである．画素空間マスク$\M_p$として，168$\times$168画素と136$\times$136画素の2つのセンターマスクを用いる．この表から，提案手法は全てのデータセットとマスクサイズにおいて，最先端のゼロショット画像補完手法の一つであるDDNMを凌駕していることがわかる．
 
-提案手法の推論時間は，NVIDIA RTX 4080 GPU1台で1画像あたり約3秒であるのに対し，DDNMは同GPUで1画像あたり約1分40秒を要する．このことから，提案手法はDDNMに比べて約33倍の大幅な高速化を実現している．
+提案手法の画像1枚あたりの推論時間は，NVIDIA RTX 4080 GPU1台で約3秒であるのに対し，DDNMは約1分40秒を要する．このことから，提案手法はDDNMに比べて約33倍の大幅な高速化を実現している．
 
 提案手法の特徴の一つである，テキストプロンプトによる補完の精度向上効果を評価するため，入力画像からキャプションを推定する手法であるBootstrapping Language-Image Pre-training (BLIP)~\cite{li2022blip}を原画像に適用することで得られた理想的なプロンプトを用いた提案手法のFID値を表~\ref{tb:main_result}にOurs+BLIP*として示す．
-この結果から，理想的なプロンプトを用いることで補完された画像は，他の手法よりも現画像に近いことがわかる．
+この結果から，理想的なプロンプトを用いることで補完された画像は，他の手法よりも原画像に近いことがわかる．
 
 
-ベースライン手法と我々の提案手法による補完画像の視覚的比較を図~\ref{fig:main_result_images}に示す．1行目と2行目の画像は，提案手法が現実的な内容で欠損領域を補完できることを示している．すべての例において，DDNMによる補完結果は非現実的であり，欠落領域にアーティファクトが含まれている．
+ベースライン手法と提案手法による補完画像の視覚的比較を図~\ref{fig:main_result_images}に示す．これらの画像は，提案手法が現実的な内容で欠損領域を補完できることを示している．この例では，DDNMによる補完結果は非現実的であり，欠落領域にアーティファクトが含まれていることがわかる．
 
 
- \begin{table}[tbp]
-   \caption{提案手法と既存のゼロショット画像補完アルゴリズムのFID．値が低い程性能が優れていることを示す．最も優れた結果は\textbf{太字}で示す．}
-    
-    \label{tb:main_result}
-    \small
-    \centering
-    \resizebox{\linewidth}{!}{
-    \begin{tabular}{lcc|cc|cc}
-        \toprule
-        データセット & \multicolumn{2}{c}{BSDS500} & \multicolumn{2}{c}{ImageNet-1k} & \multicolumn{2}{c}{ImageNet-O} \\ \cmidrule(l){2-7}
-        マスクサイズ    & 168&  136&168&  136& 168&  136\\ \midrule
-        DDNM \cite{wang2022zeroshot}&59.54& 43.83 & 35.63& 22.82 &  36.80  & 25.25 \\
-        \bf{Ours } &  \bf{56.57}& \bf{39.90}&  \bf{29.43}& \bf{20.49} & \bf{29.05}  & \bf{20.40}\\ \midrule
-        Ours+BLIP*   &\multirow{2}{*}{51.05}& \multirow{2}{*}{37.33} & \multirow{2}{*}{27.82}& \multirow{2}{*}{21.18} & \multirow{2}{*}{32.20}  & \multirow{2}{*}{23.54} \\
-        (refs. only) & & & & & & \\
-        \bottomrule   
-    \end{tabular}
-    }
+\begin{table}[tbp]
+	\caption{提案手法と既存のゼロショット画像補完アルゴリズムのFID．値が低い程性能が優れていることを示す．最も優れた結果は\textbf{太字}で示す．}
+
+	\label{tb:main_result}
+	\small
+	\centering
+	\resizebox{\linewidth}{!}{
+		\begin{tabular}{lcc|cc|cc}
+			\toprule
+			データセット                       & \multicolumn{2}{c}{BSDS500} & \multicolumn{2}{c}{ImageNet-1k} & \multicolumn{2}{c}{ImageNet-O}                                                                            \\ \cmidrule(l){2-7}
+			マスクサイズ                       & 168                         & 136                             & 168                            & 136                    & 168                    & 136                    \\ \midrule
+			DDNM \cite{wang2022zeroshot} & 59.54                       & 43.83                           & 35.63                          & 22.82                  & 36.80                  & 25.25                  \\
+			\bf{Ours }                   & \bf{56.57}                  & \bf{39.90}                      & \bf{29.43}                     & \bf{20.49}             & \bf{29.05}             & \bf{20.40}             \\ \midrule
+			Ours+BLIP*                   & \multirow{2}{*}{51.05}      & \multirow{2}{*}{37.33}          & \multirow{2}{*}{27.82}         & \multirow{2}{*}{21.18} & \multirow{2}{*}{32.20} & \multirow{2}{*}{23.54} \\
+			(refs. only)                 &                             &                                 &                                &                        &                        &                        \\
+			\bottomrule
+		\end{tabular}
+	}
 \end{table}
 
 
@@ -169,8 +178,8 @@ $
 
 
 \simplefootnotetext{
-千葉工業大学 先進工学部 知能メディア工学科\\
-〒\hspace{0pt}275--0016 千葉県習志野市津田沼2-17-1\\
-Phone: 047-478-0136\\
-E-mail: takamichi.miyata@it-chiba.ac.jp}
+	千葉工業大学 先進工学部 知能メディア工学科\\
+	〒\hspace{0pt}275--0016 千葉県習志野市津田沼2-17-1\\
+	Phone: 047-478-0136\\
+	E-mail: takamichi.miyata@it-chiba.ac.jp}
 \end{document}
